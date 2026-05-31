@@ -116,7 +116,7 @@ void kmain(void) {
          shell_update();
         //  trigger_illegal_instruction();
         // trigger_ecall();
-        trigger_page_fault();
+        // trigger_page_fault();
 
     }
 }

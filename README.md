@@ -7,7 +7,7 @@ This project is a journey into the "heart of the machine." I am developing a bar
 ## 🛠️ Tech Stack
 - **Language:** C, RISC-V Assembly
 - **Environment:** QEMU (virt machine)
-- **Toolchain:** `riscv64-unknown-elf-gcc`, `gdb`, `make`
+- **Toolchain:** `riscv64-unknown-elf-gcc`, `gdb`, `cmake`, `make`
 
 ## 🚀 Key Features (In Development)
 - [x] **Bootloader Logic:** Transitioning from Assembly to C execution.
@@ -21,8 +21,13 @@ This project is a journey into the "heart of the machine." I am developing a bar
 - `linker.ld`: Defines the memory layout for the RISC-V virt machine.
 
 ## 💻 How to Run
-1. Ensure you have the RISC-V toolchain and QEMU installed.
+1. Ensure you have the RISC-V toolchain, CMake, and QEMU installed.
 2. Clone the repo: `git clone https://github.com/Aritrahutait07/my_riscv_os`
-3. Run using QEMU:
+3. Build the OS:
    ```bash
-   qemu-system-riscv64 -machine virt -cpu rv64 -nographic -serial mon:stdio -kernel kernel.elf
+   make
+   ```
+4. Run using QEMU:
+   ```bash
+   make run
+   ```
