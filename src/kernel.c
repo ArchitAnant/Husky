@@ -2,7 +2,7 @@
 #include <uart/uart.h>
 #include <init/shell/shell.h>
 #include <mm/pages/page.h>
-#include <mm/malloc/malloc.h>
+#include <mm/kmalloc/kmalloc.h>
 #include <trap/trap.h>
 
 
@@ -18,9 +18,9 @@ void test_malloc_complex() {
 
     // 1. Test: Multiple Small Allocations
     uart_puts("[1] Allocating 3 small blocks (A, B, C)...\r\n");
-    char *a = (char *)malloc(100);
-    char *b = (char *)malloc(100);
-    char *c = (char *)malloc(100);
+    char *a = (char *)kmalloc(100);
+    char *b = (char *)kmalloc(100);
+    char *c = (char *)kmalloc(100);
 
     if (a && b && c) {
         uart_printf("  A: 0x%x, B: 0x%x, C: 0x%x\r\n", (uint64_t)a, (uint64_t)b, (uint64_t)c);
@@ -28,33 +28,33 @@ void test_malloc_complex() {
 
     // 2. Test: Slicing & Hole Reuse
     uart_puts("[2] Freeing B and allocating D (size 50) to see if it slices B's hole...\r\n");
-    free(b); 
-    char *d = (char *)malloc(50);
+    kfree(b);
+    char *d = (char *)kmalloc(50);
     uart_printf("  D (50 bytes) allocated at: 0x%x (Should match B's old address)\r\n", (uint64_t)d);
 
     // 3. Test: The "Healing" (Coalescing) Test
     // If we free A and then free D (which is in B's old spot), 
     // and then free C... they should all merge back into one giant block.
     uart_puts("[3] Freeing A, D, and C to trigger merging...\r\n");
-    free(a);
-    free(d);
-    free(c);
+    kfree(a);
+    kfree(d);
+    kfree(c);
 
     uart_puts("[4] Allocating a large block (300 bytes) that requires the merged space...\r\n");
-    char *large = (char *)malloc(300);
+    char *large = (char *)kmalloc(300);
     if (large) {
         uart_printf("  Large block allocated at: 0x%x (Success! Merging works)\r\n", (uint64_t)large);
-        free(large);
+        kfree(large);
     } else {
         uart_puts("  FAILED: Merging did not create a 300-byte block.\r\n");
     }
 
     // 4. Test: Cross-Page Allocation
     uart_puts("[5] Requesting 5000 bytes (Crosses 4KB page boundary)...\r\n");
-    void *big_ptr = malloc(5000);
+    void *big_ptr = kmalloc(5000);
     if (big_ptr) {
         uart_printf("  Big block (5000 bytes) at: 0x%x\r\n", (uint64_t)big_ptr);
-        free(big_ptr);
+        kfree(big_ptr);
     } else {
         uart_puts("  FAILED: Could not allocate across page boundary.\r\n");
     }
@@ -63,11 +63,11 @@ void test_malloc_complex() {
     uart_puts("[6] Stress test: 10 small allocations...\r\n");
     void *ptrs[10];
     for(int i=0; i<10; i++) {
-        ptrs[i] = malloc(16);
+        ptrs[i] = kmalloc(16);
     }
     uart_puts("  Freeing stress test blocks...\r\n");
     for(int i=0; i<10; i++) {
-        free(ptrs[i]);
+        kfree(ptrs[i]);
     }
 
     uart_puts("--- Complex Malloc Test Finished ---\r\n\r\n");

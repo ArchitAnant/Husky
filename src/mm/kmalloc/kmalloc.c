@@ -1,5 +1,5 @@
 #include <stddef.h>
-#include <mm/malloc/malloc.h>
+#include <mm/kmalloc/kmalloc.h>
 #include <mm/pages/page.h>
 #include <uart/uart.h>
 
@@ -40,7 +40,7 @@ void* allocate_leftover_pages(size_t size, m_lfov* leftover_blocks) {
     return NULL; 
 }
 
-void* malloc(size_t size) {
+void* kmalloc(size_t size) {
     if (size == 0) return NULL;
 
     // 1. ADD THE HEADER SIZE TO THE REQUEST
@@ -90,7 +90,7 @@ void* malloc(size_t size) {
     return (void*)(header + 1); 
 }
 
-void free(void* ptr) {
+void kfree(void* ptr) {
     if (ptr == NULL) return;
 
     // 1. READ THE HEADER
