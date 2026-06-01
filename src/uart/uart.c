@@ -1,65 +1,44 @@
 #include <stdint.h>
 #include <stdarg.h>
-#include "uart.h" 
+#include <pico/stdlib.h>
+#include "uart.h"
+#include <stdio.h> 
 
 #define print(fmt, ...)   do { } while (0)
 #define println(fmt, ...) do { } while (0)
 
-Uart uart_new(uint64_t base_address) {
+Uart uart_new(uint32_t base_address) {
     Uart u;
     u.base_address = base_address;
     return u;
 }
 
-int uart_getc() {
-    if (*UART_REG(5) & 0x01) { // Data Ready?
-        return *UART_REG(0);
-    }
-    return -1;
+int os_uart_getc() {
+    int c = getchar_timeout_us(0);
+    return (c == PICO_ERROR_TIMEOUT) ? -1 : c;
 }
 
 void uart_put(Uart *self, uint8_t c) {
-    volatile uint8_t *ptr = (volatile uint8_t *)self->base_address;
-
-    // Wait until the transmitter is empty (Bit 5 of Status Register)
-    while ((*(ptr + 5) & 0x20) == 0) {
-        // Wait...
-    }
-
-    // Write the byte to Offset 0
-    *(ptr + 0) = c;
+    (void)self;
+    putchar((char)c);
 }
 
-void uart_putc(char c) {
-    // Wait until Transmitter Holding Register is Empty (Bit 5 of LSR)
-    while ((*UART_REG(5) & 0x20) == 0);
-    *UART_REG(0) = (uint8_t)c;
+void os_uart_putc(char c) {
+    putchar(c);
 }
 
-void uart_puts(const char *s) {
-    while (*s) uart_putc(*s++);
+void os_uart_puts(const char *s) {
+    while (*s) putchar(*s++);
 }
 
-void uart_init() {
-    // 1. Disable all interrupts in UART hardware
-    *UART_REG(1) = 0x00;
-    
-    // 2. Set Baud Rate (not strictly needed for QEMU, but good practice)
-    *UART_REG(3) = 0x80; // Enable DLAB
-    *UART_REG(0) = 0x03; // DLL (Divisor Latch Low)
-    *UART_REG(1) = 0x00; // DLM (Divisor Latch High)
-    
-    // 3. Set word length to 8-bits, no DLAB
-    *UART_REG(3) = 0x03;
-    
-    // 4. Enable FIFO, clear them
-    *UART_REG(2) = 0x07;
+void os_uart_init() {
+    stdio_init_all();
 }
-
 
 void uart_write_str(Uart *self, const char *s) {
+    (void)self;
     while (*s) {
-        uart_put(self, (uint8_t)*s++);
+        putchar(*s++);
     }
 }
 
@@ -69,90 +48,84 @@ void __attribute__((noreturn)) abort() {
     }
 }
 
-void __attribute__((noreturn)) panic(const char *message, const char *file, uint32_t line){
-    uart_puts("\r\n--- KERNEL PANIC ---\r\n");
-    uart_printf("Message: %s\r\n", message);
-    uart_printf("At: %s:%d\r\n", file, line);
-    uart_puts("----------------------\r\n");
-    uart_puts("System halted.\r\n");
+void __attribute__((noreturn)) os_panic(const char *message, const char *file, uint32_t line){
+    os_uart_puts("\r\n--- KERNEL PANIC ---\r\n");
+    os_uart_printf("Message: %s\r\n", message);
+    os_uart_printf("At: %s:%d\r\n", file, line);
+    os_uart_puts("----------------------\r\n");
+    os_uart_puts("System halted.\r\n");
     abort();
 }
-void mmio_write(uint64_t address, uint64_t offset, uint8_t value) {
+
+void mmio_write(uint32_t address, uint32_t offset, uint8_t value) {
     volatile uint8_t *reg = (volatile uint8_t *)(address + offset);
     *reg = value;
 }
-uint8_t mmio_read(uint64_t address, uint64_t offset) {
+
+uint8_t mmio_read(uint32_t address, uint32_t offset) {
     volatile uint8_t *reg = (volatile uint8_t *)(address + offset);
     return *reg;
 }
 
-void uart_puthex(uint64_t val) {
+void uart_puthex(uint32_t val) {
     char *hex = "0123456789abcdef";
-    for (int i = 60; i >= 0; i -= 4) {
-        // (val >> i) extracts the current 4 bits, & 0xf ensures we only get the last 4 bits, which is the hex digit
-        uart_putc(hex[(val >> i) & 0xf]);
+    for (int i = 28; i >= 0; i -= 4) {
+        os_uart_putc(hex[(val >> i) & 0xf]);
     }
 }
 
-
-void uart_printf(const char *fmt, ...){
+void os_uart_printf(const char *fmt, ...){
     va_list args;
     va_start(args, fmt);
     for(const char *p = fmt; *p != '\0'; p++){
         if(*p!='%'){
-            uart_putc(*p);
+            os_uart_putc(*p);
             continue;
         }
         p++;
-            switch(*p){
-                case 's': {
-                    const char *str = va_arg(args, const char *);
-                    uart_puts(str);
-                    break;
-                }
-                case 'd': {
-                    //int num = va_arg(args, int);
-                    // change to long long to support 64-bit integers in RISC-V as int is 32-bit in C
-                    long long num = va_arg(args, long long);
-                    if(num < 0){
-                        uart_putc('-');
-                        num = -num;
-                    }
-                    char buf[21]; // enough to hold 64-bit integer in decimal 
-                    int i = 0;
-                    do {
-                        buf[i++] = (num % 10) + '0';
-                        num /= 10;
-                    } while(num > 0);
-                    for(int j = i-1; j >= 0; j--){
-                        uart_putc(buf[j]);
-                    }
-                    break;
-                }
-                case 'x':{
-                    uint64_t num = va_arg(args, uint64_t);
-                    // uart_puts("0x");
-                    uart_puthex(num);
-                    break;
-                }
-                case 'c': {
-                    char c = (char)va_arg(args, int);
-                    uart_putc(c);
-                    break;
-                }
-                case 'p':{
-                    uint64_t num = va_arg(args, uint64_t);
-                    uart_puts("0x");
-                    uart_puthex(num);
-                    break;
-                }
-                default:
-                    uart_putc('%');
-                    uart_putc(*p);
-
+        switch(*p){
+            case 's': {
+                const char *str = va_arg(args, const char *);
+                os_uart_puts(str);
+                break;
             }
-
+            case 'd': {
+                long long num = va_arg(args, long long);
+                if(num < 0){
+                    os_uart_putc('-');
+                    num = -num;
+                }
+                char buf[21];
+                int i = 0;
+                do {
+                    buf[i++] = (num % 10) + '0';
+                    num /= 10;
+                } while(num > 0);
+                for(int j = i-1; j >= 0; j--){
+                    os_uart_putc(buf[j]);
+                }
+                break;
+            }
+            case 'x': {
+                uint32_t num = va_arg(args, uint32_t);
+                uart_puthex(num);
+                break;
+            }
+            case 'c': {
+                char c = (char)va_arg(args, int);
+                os_uart_putc(c);
+                break;
+            }
+            case 'p': {
+                uint32_t num = va_arg(args, uint32_t);
+                os_uart_puts("0x");
+                uart_puthex(num);
+                break;
+            }
+            default:
+                os_uart_putc('%');
+                break;
+        }
     }
     va_end(args);
-
 }

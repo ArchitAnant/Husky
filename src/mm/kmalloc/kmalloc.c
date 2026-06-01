@@ -64,14 +64,14 @@ void* kmalloc(size_t size) {
         uint32_t leftover_space = total_allocated_space - actual_size_needed; 
 
         if (leftover_space > 0) {
-            uint64_t left_over_addr = (uint64_t)allocated_block + actual_size_needed; 
+            uint32_t left_over_addr = (uint32_t)allocated_block + actual_size_needed; 
             
             if (num_leftover_blocks < MAX_LEFTOVER_BLOCKS) {
                 leftover_blocks[num_leftover_blocks].left_over_start = left_over_addr;
                 leftover_blocks[num_leftover_blocks].free_size = leftover_space;
                 num_leftover_blocks++;
             } else {
-                uart_puts("WARNING: Max leftover blocks reached.\n");
+                os_uart_puts("WARNING: Max leftover blocks reached.\n");
             }
         }
     }
@@ -99,7 +99,7 @@ void kfree(void* ptr) {
     
     // The total size we are freeing includes the header itself!
     uint32_t total_freed_size = header->size + sizeof(MallocHeader);
-    uint64_t freed_address = (uint64_t)header;
+    uint32_t freed_address = (uint32_t)header;
 
     // 2. ADD TO LEFTOVER BLOCKS
     if (num_leftover_blocks < MAX_LEFTOVER_BLOCKS) {
@@ -107,7 +107,7 @@ void kfree(void* ptr) {
         leftover_blocks[num_leftover_blocks].free_size = total_freed_size;
         num_leftover_blocks++;
     } else {
-        uart_puts("ERROR: Leftover blocks array is full! Memory leak occurred.\n");
+        os_uart_puts("ERROR: Leftover blocks array is full! Memory leak occurred.\n");
         return;
     }
 
@@ -128,7 +128,7 @@ void kfree(void* ptr) {
     // Because it is sorted, any blocks that are physically touching 
     // will be right next to each other in the array!
     for (uint32_t i = 0; i < num_leftover_blocks - 1; ) {
-        uint64_t current_end = leftover_blocks[i].left_over_start + leftover_blocks[i].free_size;
+        uint32_t current_end = leftover_blocks[i].left_over_start + leftover_blocks[i].free_size;
         
         // If the end of this block is exactly the start of the next block...
         if (current_end == leftover_blocks[i + 1].left_over_start) {

@@ -28,7 +28,7 @@ void* page_alloc(int n);
 // Page deallocation function, takes a pointer to the page to be freed
 void page_free(void* ptr);
 
-uint64_t page_get_heap_start(void);
+uint32_t page_get_heap_start(void);
 PageDescriptor* page_get_descriptors(void);
 int get_page_index_from_address(void* addr);
 

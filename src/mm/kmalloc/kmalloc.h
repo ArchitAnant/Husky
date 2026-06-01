@@ -2,7 +2,7 @@
 #include <stddef.h>
 
 typedef struct {
-    uint64_t left_over_start;
+    uint32_t left_over_start;
     uint32_t free_size;
 } m_lfov;
 
