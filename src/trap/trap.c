@@ -1,5 +1,8 @@
 #include "trap.h"
 #include <uart/uart.h>
+#include "hardware/irq.h"
+
+extern void irq_handler_chain(void); 
 
 uint32_t m_trap(uint32_t epc, uint32_t tval, uint32_t cause, uint32_t hart, uint32_t status, TrapFrame *frame){
     (void) status;
@@ -8,25 +11,34 @@ uint32_t m_trap(uint32_t epc, uint32_t tval, uint32_t cause, uint32_t hart, uint
     uint32_t cause_code = cause & 0x7FFFFFFF;
     uint32_t return_epc = epc;
     
-    if(is_async){
-        switch(cause_code){
-            case 3:
-                os_uart_printf("[+] Software Interrupt from hart %d\r\n", hart);
-                break;
-            case 7: {
-                // We're stepping away from QEMU CLINT hardcoding for Pico 2
-                // Timer handling depends on RP2350 specific timers
-                os_uart_printf("[+] Timer Interrupt from hart %d\r\n", hart);
-                break;
+    if (is_async) {
+        // On Pico 2 (Hazard3), hardware IRQs map to cause_code 16 and up.
+        if (cause_code >= 16) {
+            uint irq_num = cause_code - 16;
+            
+            // Ask the Pico SDK for the correct handler (e.g. TinyUSB's handler)
+            irq_handler_t sdk_handler = irq_get_vtable_handler(irq_num);
+            
+            if (sdk_handler) {
+                sdk_handler(); // Let the SDK clear the hardware flag and queue data!
+            } else {
+                os_uart_printf("[!] Unhandled Hardware IRQ: %d\r\n", irq_num);
             }
-            case 8:
-                os_uart_printf("[+] External Interrupt from hart %d\r\n", hart);
-                break;
-            default:
-               os_panic("Unhandled async trap", __FILE__, __LINE__);
-               break;
+        } 
+        else if (cause_code == 11) {
+            // Fallback: Standard RISC-V Machine External Interrupt
+            // Read the Hazard3 meicontext register to get the IRQ
+            uint32_t meicontext;
+            asm volatile("csrr %0, 0xbe5" : "=r"(meicontext)); 
+            uint irq_num = meicontext & 0xFFF;
+            
+            irq_handler_t sdk_handler = irq_get_vtable_handler(irq_num);
+            if (sdk_handler) sdk_handler();
         }
-    }else{
+        else {
+            os_uart_printf("[+] Async trap %d from hart %d\r\n", cause_code, hart);
+        }
+    } else {
         switch(cause_code){
             case 2:
                 os_uart_printf("Illegal instruction CPU#%d -> 0x%x: 0x%x\r\n", hart, epc, tval);

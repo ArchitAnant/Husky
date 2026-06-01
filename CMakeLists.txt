@@ -22,9 +22,9 @@ target_include_directories(os_elf PRIVATE src)
 
 # Link against pico_stdlib
 if (COMMAND pico_sdk_init)
-    target_link_libraries(os_elf pico_stdlib)
-    pico_enable_stdio_usb(os_elf 0)
-    pico_enable_stdio_uart(os_elf 1)
+    target_link_libraries(os_elf pico_stdlib pico_stdio_usb hardware_irq)
+    pico_enable_stdio_usb(os_elf 1)  # CHANGE THIS TO 1 to enable USB!
+    pico_enable_stdio_uart(os_elf 1) # Keep UART enabled as well
     pico_add_extra_outputs(os_elf)
 endif()
 

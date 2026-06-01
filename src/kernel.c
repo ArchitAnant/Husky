@@ -5,6 +5,7 @@
 #include <mm/kmalloc/kmalloc.h>
 #include <trap/trap.h>
 #include "pico/stdlib.h"
+#include "tusb.h"
 
 void blink_test() {
     const uint LED_PIN = PICO_DEFAULT_LED_PIN;
@@ -89,66 +90,84 @@ void test_malloc_complex() {
     os_uart_puts("--- Complex Malloc Test Finished ---\r\n\r\n");
 }
 
-// int main(void) {
-//     // void trigger_illegal_instruction() {
-//     //     asm volatile(".word 0xFFFFFFFF");  // invalid opcode
-//     // }
-//     // void trigger_ecall() {
-//     //     asm volatile("ecall");
-//     // }
+int main(void) {
 
-//     // os_uart_puts("[+] Starting OS\r\n[+] Init UART\r\n");
-//    os_uart_init();
+    os_uart_init();
     
-//     // This loops infinitely UNTIL you run the `screen` command on your Mac
+    // 1. Wait for the user to connect
+    while (os_uart_getc() == -1) {
+        tud_task(); 
+        sleep_ms(10);
+    }
+
+    // 2. IMPORTANT: Turn on Interrupts NOW, before the logs.
+    // This allows the USB hardware to send data in the background 
+    // while the CPU is busy doing the page_alloc tests.
+    asm volatile("csrs mstatus, %0" :: "r"(8));
+
+    // 3. Give the Mac terminal 200ms to wake up after the keypress
+    sleep_ms(200); 
+    tud_task();
+
+    os_uart_puts("[+] Starting OS\r\n");
+    tud_task(); // Force a USB process after a big print
+
+    os_uart_puts("[+] Init Shell\r\n");
+    shell_init();
+    
+    page_init();
+    os_uart_puts("[+] Init Page Allocator\r\n");
+    tud_task(); 
+
+    void *page1 = page_alloc(4);
+    os_uart_printf("Allocated 4 contiguous pages starting at: 0x%x\r\n", (uint32_t)page1);
+    void *page2 = page_alloc(4);
+    os_uart_printf("Allocated 4 contiguous pages starting at: 0x%x\r\n", (uint32_t)page2);
+    void *page3 = page_alloc(4);
+    os_uart_printf("Allocated 4 contiguous pages starting at: 0x%x\r\n", (uint32_t)page3);
+    page_free(page3);
+    page_free(page2);
+    page_free(page1);
+    
+    test_malloc_complex();
+    
+    
+    os_uart_puts("\r\n");
+    
+    for(int i=0; i<10; i++) {
+        tud_task();
+        sleep_ms(1);
+    }
+
+    while (1) {
+        tud_task(); 
+        shell_update();
+    }
+}
+// int main(void) {
+//     // 1. Setup hardware FIRST, with global interrupts DISABLED.
+//     os_uart_init(); 
+    
+//     // 2. Wait for Mac, keeping the heartbeat alive manually
 //     while (os_uart_getc() == -1) {
+//         tud_task(); 
 //         sleep_ms(10);
 //     }
     
-//     // Now it's safe to print; the Mac is definitely listening
 //     os_uart_puts("[+] Starting OS\r\n[+] Init UART\r\n");
 //     os_uart_puts("[+] Init Shell\r\n");
 //     shell_init();
-    
 //     page_init();
-//     os_uart_puts("[+] Init Page Allocator\r\n");
-//     // void* page1 = page_alloc(1);
-//     // os_uart_printf("Allocated page at: 0x%x\r\n", (uint64_t)page1);
-//     // void *p2 = page_alloc(1);
-//     // os_uart_puts("\r\n");
-//     // os_uart_printf("Allocated page at: 0x%x\r\n", (uint32_t)p2);
-//     // page_free(page1);
-//     // os_uart_puts("\r\n");
-//     // os_uart_printf("Freed page at: 0x%x\r\n", (uint32_t)page1);
-//     void *page1 = page_alloc(4);
-//     os_uart_printf("Allocated 4 contiguous pages starting at: 0x%x\r\n", (uint32_t)page1);
-//     void *page2 = page_alloc(4);
-//     os_uart_printf("Allocated 4 contiguous pages starting at: 0x%x\r\n", (uint32_t)page2);
-//     void *page3 = page_alloc(4);
-//     os_uart_printf("Allocated 4 contiguous pages starting at: 0x%x\r\n", (uint32_t)page3);
-//     page_free(page3);
-//     page_free(page2);
-//     page_free(page1);
     
 //     test_malloc_complex();
-    
-    
 //     os_uart_puts("\r\n");
     
-//     // blink_test(); // Comment this out if you want to see the UART output
+//     // 3. System is fully stable. Turn on Global Interrupts NOW.
+//     asm volatile("csrs mstatus, %0" :: "r"(8));
+    
 //     while (1) {
+//         // 4. Process the data that the interrupt handler queues up
+//         tud_task(); 
 //         shell_update();
-//         //  trigger_illegal_instruction();
-//         // trigger_ecall();
-//         // trigger_page_fault();
-
 //     }
 // }
-int main(void) {
-    os_uart_init(); // Initializes stdio
-    
-    while (1) {
-        os_uart_puts("HELLO FROM NATIVE USB!\r\n");
-        sleep_ms(1000);
-    }
-}
