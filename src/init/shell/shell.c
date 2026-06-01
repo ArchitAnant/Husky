@@ -1,5 +1,5 @@
 #include "shell.h"
-#include "../uart/uart.h"
+#include <uart/uart.h>
 
 #define MAX_BUF 128
 static char buffer[MAX_BUF];
@@ -12,26 +12,26 @@ static int strncmp(const char *s1, const char *s2, int n) {
 }
 
 static void execute_command(char *line) {
-    uart_puts("\r\n");
+    os_uart_puts("\r\n");
     
     if (strncmp(line, "echo ", 5) == 0) {
-        uart_puts(line + 5); // Print everything after "echo "
+        os_uart_puts(line + 5); // Print everything after "echo "
     } else if (strncmp(line, "help", 4) == 0) {
-        uart_puts("Commands: echo <text>, help");
+        os_uart_puts("Commands: echo <text>, help");
     } else if (line[0] != '\0') {
-        uart_puts("Unknown command.");
+        os_uart_puts("Unknown command.");
     }
 
-    uart_puts("\r\n$ ");
+    os_uart_puts("\r\n$ ");
 }
 
 void shell_init() {
     index = 0;
-    uart_puts("[+] Entering main loop\r\n\nWelcome to the Shell!\r\nUse help to get started\r\n\n$ ");
+    os_uart_puts("[+] Entering main loop\r\n\nWelcome to the Shell!\r\nUse help to get started\r\n\n$ ");
 }
 
 void shell_update() {
-    int c = uart_getc();
+    int c = os_uart_getc();
     if (c == -1) return; // No input, just return to kernel
 
     if (c == '\r') {
@@ -41,10 +41,10 @@ void shell_update() {
     } else if (c == 0x7F || c == '\b') {
         if (index > 0) {
             index--;
-            uart_puts("\b \b");
+            os_uart_puts("\b \b");
         }
     } else if (index < MAX_BUF - 1) {
         buffer[index++] = (char)c;
-        uart_putc((char)c); // Visual echo
+        os_uart_putc((char)c); // Visual echo
     }
 }
